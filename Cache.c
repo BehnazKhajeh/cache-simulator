@@ -74,7 +74,10 @@ void set_cache_param(int param, int value) {
 
 /************************************************************/
 void init_cache() {
+  /* initialize the cache, and cache statistics data structures */
   int index_ = cache_usize / cache_block_size;
+
+  //cache c1
   c1.associativity = cache_assoc;
   c1.n_sets = index_ / cache_assoc;
   c1.LRU_head = (Pcache_line *)malloc(c1.n_sets * sizeof(Pcache_line));
@@ -84,6 +87,8 @@ void init_cache() {
     for (int j = 0; j < c1.associativity; j++) {
       c1.LRU_head[i][j].tag = 0;
       c1.LRU_head[i][j].dirty = 0;
+
+      //Linking
       if (i == 0 && j == 0) {
         c1.LRU_head[i][j].LRU_prev = NULL;
         c1.LRU_head[i][j].LRU_next = NULL;
@@ -101,7 +106,10 @@ void init_cache() {
 
 /************************************************************/
 cache_line *updateList(cache_line *head, cache_line *curr) {
+  //for LRU policy
   if (curr == head) return head;
+
+  // update the list: newest node as head, oldest node as tail.
   cache_line *prev = head;
   while (prev->LRU_next != curr) {
     prev = prev->LRU_next;
@@ -113,15 +121,16 @@ cache_line *updateList(cache_line *head, cache_line *curr) {
 
 /************************************************************/
 void perform_access(unsigned addr, unsigned access_type) {
-  bool hit = false;
-  int offset_bits = log2(cache_block_size);
-  int index_bits = log2(c1.n_sets);
-  int tag = addr >> (index_bits + offset_bits);
+  /* handle an access to the cache */
+  bool hit = false; // default : false
+  int offset_bits = log2(cache_block_size); //offset bits
+  int index_bits = log2(c1.n_sets); //index bits
+  int tag = addr >> (index_bits + offset_bits); //tag bit of address
   int index = (addr >> offset_bits) & (c1.n_sets - 1);
 
   int found_index = -1;
   for (int j = 0; j < c1.associativity; j++) {
-    if (c1.LRU_head[index][j].tag == tag) {
+    if (c1.LRU_head[index][j].tag == tag) { //hit
       hit = true;
       found_index = j;
       break;
@@ -136,7 +145,7 @@ void perform_access(unsigned addr, unsigned access_type) {
     if (cache_writeback && access_type != 2) {
       c1.LRU_head[index][found_index].dirty = 1;
     }
-  } else {
+  } else {  //miss
     stat->misses++;
     stat->demand_fetches++;
     if (cache_writealloc || access_type == 2) {
@@ -148,9 +157,10 @@ void perform_access(unsigned addr, unsigned access_type) {
 
 /************************************************************/
 void flush() {
+  /* flush the cache */
   for (int i = 0; i < c1.n_sets; i++) {
     for (int j = 0; j < c1.associativity; j++) {
-      if (c1.LRU_head[i][j].dirty == 1) {
+      if (c1.LRU_head[i][j].dirty == 1) { //write memory
         c1.LRU_head[i][j].dirty = 0;
       }
     }
@@ -164,17 +174,18 @@ void delete(Pcache_line *head, Pcache_line *tail, Pcache_line item) {
   if (item->LRU_prev) {
     item->LRU_prev->LRU_next = item->LRU_next;
   } else {
-    *head = item->LRU_next;
+    *head = item->LRU_next;  /* item at head */
   }
 
   if (item->LRU_next) {
     item->LRU_next->LRU_prev = item->LRU_prev;
   } else {
-    *tail = item->LRU_prev;
+    *tail = item->LRU_prev; /* item at tail */
   }
 }
 
 /************************************************************/
+/* inserts at the head of the list */
 void insert(Pcache_line *head, Pcache_line *tail, Pcache_line item) {
   item->LRU_next = *head;
   item->LRU_prev = NULL;
